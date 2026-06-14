@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+fewo.db
+*.db
+node_modules/
+frontend/dist/
