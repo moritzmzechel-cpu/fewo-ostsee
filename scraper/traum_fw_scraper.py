@@ -76,11 +76,43 @@ def _extract_price(text: Optional[str]) -> Optional[float]:
     return float(m.group(1)) if m else None
 
 
+async def _accept_cookies(page: Page) -> None:
+    """Klickt Cookie-Banner weg falls vorhanden."""
+    selectors = [
+        "button#onetrust-accept-btn-handler",
+        "button[id*='accept']",
+        "button[class*='accept']",
+        "button[data-testid*='accept']",
+        "[aria-label*='Akzeptieren']",
+        "[aria-label*='Accept']",
+        "button:has-text('Alle akzeptieren')",
+        "button:has-text('Akzeptieren')",
+        "button:has-text('Accept all')",
+        "button:has-text('Zustimmen')",
+    ]
+    for sel in selectors:
+        try:
+            btn = page.locator(sel).first
+            if await btn.is_visible(timeout=1500):
+                await btn.click()
+                log.info("  Cookie-Banner akzeptiert.")
+                await short_delay(0.8, 1.5)
+                return
+        except Exception:
+            continue
+
+
 async def _get_page_html(page: Page, url: str) -> Optional[str]:
-    """Lädt eine URL, wartet auf Netzwerk-Idle damit JS-Rendering abgeschlossen ist."""
+    """Lädt eine URL, akzeptiert Cookie-Banner, gibt HTML zurück."""
     try:
-        await page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT_MS)
-        await short_delay(1.5, 3.0)
+        await page.goto(url, wait_until="domcontentloaded", timeout=REQUEST_TIMEOUT_MS)
+        await _accept_cookies(page)
+        # Warte bis echte Inhalte geladen sind
+        try:
+            await page.wait_for_selector("a[href*='/p/'], a[href*='ferienwohnung'], main, article", timeout=8000)
+        except Exception:
+            pass
+        await short_delay(2.0, 3.5)
         return await page.content()
     except Exception as e:
         log.warning(f"Fehler beim Laden von {url}: {e}")
@@ -316,7 +348,7 @@ async def run_scraper():
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
-            headless=True,    # auf False setzen zum Debuggen
+            headless=False,   # sichtbar zum Debuggen — nach erstem Erfolg auf True setzen
             args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
         )
         context: BrowserContext = await browser.new_context(**ctx_args)
