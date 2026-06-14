@@ -15,6 +15,9 @@ def get_listings(
     ort: Optional[str] = Query(None, description="Filter nach Ort"),
     min_personen: Optional[int] = Query(None),
     max_personen: Optional[int] = Query(None),
+    min_preis: Optional[float] = Query(None, description="Mindestpreis pro Nacht (EUR)"),
+    max_preis: Optional[float] = Query(None, description="Maximalpreis pro Nacht (EUR)"),
+    haustiere: Optional[bool] = Query(None, description="true = Haustiere erlaubt"),
     limit: int = Query(100, le=500),
     offset: int = Query(0),
     db: Session = Depends(get_db),
@@ -27,8 +30,32 @@ def get_listings(
         q = q.filter(Listing.personen_max >= min_personen)
     if max_personen:
         q = q.filter(Listing.personen_max <= max_personen)
+    if haustiere is True:
+        q = q.filter(Listing.haustiere == "ja")
+    elif haustiere is False:
+        q = q.filter(Listing.haustiere != "ja")
 
     listings = q.offset(offset).limit(limit).all()
+
+    # Preis-Filter nachgelagert (Preis liegt in separater Tabelle)
+    if min_preis is not None or max_preis is not None:
+        filtered = []
+        for l in listings:
+            letzter = (
+                db.query(Preis)
+                .filter(Preis.listing_id == l.id)
+                .order_by(Preis.erfasst_am.desc())
+                .first()
+            )
+            preis = letzter.preis_pro_nacht if letzter else None
+            if preis is None:
+                continue
+            if min_preis is not None and preis < min_preis:
+                continue
+            if max_preis is not None and preis > max_preis:
+                continue
+            filtered.append(l)
+        listings = filtered
 
     result = []
     for l in listings:
