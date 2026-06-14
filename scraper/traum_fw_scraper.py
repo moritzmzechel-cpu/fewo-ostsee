@@ -77,11 +77,10 @@ def _extract_price(text: Optional[str]) -> Optional[float]:
 
 
 async def _get_page_html(page: Page, url: str) -> Optional[str]:
-    """Lädt eine URL, wartet auf vollständiges Laden, gibt HTML zurück."""
+    """Lädt eine URL, wartet auf Netzwerk-Idle damit JS-Rendering abgeschlossen ist."""
     try:
-        await page.goto(url, wait_until="domcontentloaded",
-                        timeout=REQUEST_TIMEOUT_MS)
-        await short_delay(1.0, 2.5)
+        await page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT_MS)
+        await short_delay(1.5, 3.0)
         return await page.content()
     except Exception as e:
         log.warning(f"Fehler beim Laden von {url}: {e}")
@@ -98,14 +97,34 @@ def _parse_listing_urls(html: str) -> list[str]:
     soup = BeautifulSoup(html, "html.parser")
     urls = []
 
-    # Primärer Selektor: Karten mit data-object-id oder Links zu /p/
     for a in soup.select("a[href]"):
-        href = a["href"]
-        # Listing-URLs enthalten /p/<zahl>/ oder ähnliche Muster
-        if re.search(r"/p/\d+", href) or re.search(r"/ferienwohnung.*-\d+/", href):
+        href = a.get("href", "")
+        if not href or href.startswith(("mailto:", "tel:", "#", "javascript:")):
+            continue
+        is_listing = (
+            re.search(r"/p/\d+", href)
+            or re.search(r"/ferienwohnung[^/]*-\d+/?$", href)
+            or re.search(r"/apartment[^/]*-\d+/?$", href)
+            or re.search(r"/haus[^/]*-\d+/?$", href)
+            or re.search(r"/objekt/\d+", href)
+            or re.search(r"/unterkunft/\d+", href)
+        )
+        if is_listing:
             full = urljoin(BASE_URL, href)
             if full not in urls:
                 urls.append(full)
+
+    # Fallback mit Debug-Ausgabe wenn nichts gefunden
+    if not urls:
+        log.warning("Keine URLs mit bekannten Mustern — aktiviere Fallback-Erkennung.")
+        for a in soup.select("a[href]"):
+            href = a.get("href", "")
+            full = urljoin(BASE_URL, href)
+            if full.startswith(BASE_URL) and re.search(r"/[^/]+-\d+", href):
+                if full not in urls:
+                    urls.append(full)
+        all_hrefs = [a.get("href", "") for a in soup.select("a[href]")][:30]
+        log.info(f"  Erste 30 Links auf Seite: {all_hrefs}")
 
     log.info(f"  → {len(urls)} Listing-URLs auf dieser Seite gefunden")
     return urls
