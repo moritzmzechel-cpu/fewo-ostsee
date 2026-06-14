@@ -360,6 +360,12 @@ async def run_scraper():
 
         page: Page = await context.new_page()
 
+        # ── Erst Startseite laden (wirkt natürlicher, umgeht Redirect-Schutz) ──
+        log.info("Lade Startseite zur Initialisierung...")
+        await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=REQUEST_TIMEOUT_MS)
+        await _accept_cookies(page)
+        await polite_delay(2.0, 4.0)
+
         # ── Suchergebnisseiten durchgehen ─────────────────────────────────────
         current_search_url = SEARCH_URL
         listing_urls: list[str] = []
