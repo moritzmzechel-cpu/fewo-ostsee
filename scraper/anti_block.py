@@ -78,7 +78,7 @@ def get_browser_context_args(user_agent: Optional[str] = None) -> dict:
                 "text/html,application/xhtml+xml,application/xml;"
                 "q=0.9,image/avif,image/webp,*/*;q=0.8"
             ),
-            "DNT": "1",
+            "Upgrade-Insecure-Requests": "1",
         },
     }
 
