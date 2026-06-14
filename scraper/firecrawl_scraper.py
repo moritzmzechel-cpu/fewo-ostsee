@@ -27,10 +27,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-SEARCH_URL = (
-    "https://www.traum-ferienwohnungen.de"
-    "/urlaub/schleswig-holstein/schlei/?sort=relevance"
-)
+SEARCH_URL = "https://www.traum-ferienwohnungen.de/europa/deutschland/schlei/"
 BASE_URL    = "https://www.traum-ferienwohnungen.de"
 SOURCE_NAME = "traum-ferienwohnungen"
 MAX_LISTINGS = 80
@@ -60,13 +57,12 @@ def _extract_source_id(url: str) -> str:
 
 # ── Listing-URLs aus Suchergebnis-Markdown ─────────────────────────────────────
 
-def _parse_listing_urls_from_markdown(markdown: str) -> list[str]:
-    """Extrahiert Listing-URLs aus dem Markdown der Suchergebnisseite."""
+def _parse_listing_urls_from_links(links: list[str]) -> list[str]:
+    """Filtert echte Listing-URLs aus der Link-Liste von Firecrawl."""
     urls = []
-    # Firecrawl gibt Markdown zurück — Links sind im Format [text](url)
-    for match in re.finditer(r'\[([^\]]+)\]\((https?://[^\)]+)\)', markdown):
-        url = match.group(2)
-        if re.search(r"/p/\d+", url) or re.search(r"traum-ferienwohnungen\.de/[^/]+-\d+", url):
+    for url in links:
+        # Format: traum-ferienwohnungen.de/12345/ oder /ferienhaus/12345/
+        if re.search(r"traum-ferienwohnungen\.de/(?:ferienhaus/|ferienwohnung/)?(\d{4,})/?$", url):
             if url not in urls:
                 urls.append(url)
     log.info(f"  → {len(urls)} Listing-URLs gefunden")
@@ -79,7 +75,8 @@ def _parse_listing_from_markdown(markdown: str, url: str, metadata: dict) -> dic
     """Extrahiert Listing-Daten aus dem Firecrawl-Markdown einer Detailseite."""
 
     # Name aus Metadata oder erstem H1
-    name = metadata.get("title") or metadata.get("ogTitle")
+    # metadata ist ein Pydantic-Objekt — Attribut-Zugriff statt .get()
+    name = getattr(metadata, "title", None) or getattr(metadata, "og_title", None)
     if not name:
         m = re.search(r"^#\s+(.+)$", markdown, re.MULTILINE)
         name = m.group(1).strip() if m else None
@@ -88,7 +85,7 @@ def _parse_listing_from_markdown(markdown: str, url: str, metadata: dict) -> dic
         return None
 
     # Ort
-    ort = metadata.get("ogLocale") or "Unbekannt"
+    ort = getattr(metadata, "og_locale", None) or "Unbekannt"
     for pattern in [r"(?:Lage|Ort|Adresse)[:\s]+([A-ZÄÖÜ][^\n,]+)", r"in\s+([A-ZÄÖÜ][a-zäöü]+(?:\s[A-ZÄÖÜ]?[a-zäöü]+)?)"]:
         m = re.search(pattern, markdown)
         if m:
@@ -124,10 +121,11 @@ def _parse_listing_from_markdown(markdown: str, url: str, metadata: dict) -> dic
 
     # Geo aus Metadata
     latitude = longitude = None
-    if metadata.get("geo"):
+    geo = getattr(metadata, "geo", None)
+    if geo:
         try:
-            latitude  = float(metadata["geo"].get("latitude", 0)) or None
-            longitude = float(metadata["geo"].get("longitude", 0)) or None
+            latitude  = float(getattr(geo, "latitude", 0) or 0) or None
+            longitude = float(getattr(geo, "longitude", 0) or 0) or None
         except (TypeError, ValueError):
             pass
 
@@ -189,20 +187,8 @@ def run_scraper():
 
     # ── Schritt 1: Suchergebnisseite scrapen ──────────────────────────────────
     log.info(f"Scrape Suchseite: {SEARCH_URL}")
-    result = app.scrape_url(SEARCH_URL, formats=["markdown"])
-    markdown = result.markdown or ""
-    listing_urls = _parse_listing_urls_from_markdown(markdown)
-
-    if not listing_urls:
-        log.warning("Keine Listing-URLs gefunden. Versuche crawl()...")
-        crawl = app.crawl_url(
-            SEARCH_URL,
-            limit=5,
-            scrape_options={"formats": ["markdown"]},
-        )
-        for page in (crawl.data or []):
-            listing_urls += _parse_listing_urls_from_markdown(page.markdown or "")
-        listing_urls = list(dict.fromkeys(listing_urls))  # deduplizieren
+    result = app.scrape_url(SEARCH_URL, formats=["links"])
+    listing_urls = _parse_listing_urls_from_links(result.links or [])
 
     listing_urls = listing_urls[:MAX_LISTINGS]
     log.info(f"{len(listing_urls)} Listings werden verarbeitet.")
