@@ -12,6 +12,7 @@ class Listing(Base):
     source_id       = Column(String, unique=True, index=True)   # ID auf der Quell-Plattform
     source          = Column(String, default="traum-ferienwohnungen")
     url             = Column(String)
+    bild_url        = Column(String, nullable=True)   # Titelbild (Thumbnail) der Quell-Plattform
 
     # Kerndaten
     name            = Column(String)

@@ -19,6 +19,7 @@ import asyncio
 import base64
 import logging
 import os
+import re
 import sys
 import urllib.parse
 
@@ -78,6 +79,19 @@ EXPERIMENT_BODY = (
 FILTER_B64 = urllib.parse.quote(base64.b64encode(RESULTS_PATH.encode()).decode())
 
 
+def _price_per_night(price: dict) -> float | None:
+    """`notFormattedPrice` ist ein 'ab'-Gesamtpreis für den Zeitraum in `unit`
+    (meist '7 Nächte'), kein Nachtpreis. Durch die Nächte-Anzahl teilen für
+    den echten (günstigsten verfügbaren) Preis pro Nacht."""
+    total = price.get("notFormattedPrice")
+    if total is None:
+        return None
+    unit = price.get("unit") or ""
+    m = re.search(r"(\d+)", unit)
+    nights = int(m.group(1)) if m else 1
+    return round(total / nights, 2) if nights else None
+
+
 def _parse_object(obj: dict) -> dict | None:
     """Wandelt ein API-Objekt direkt in unser Datenmodell um — keine Detailseite nötig."""
     name = obj.get("title")
@@ -88,6 +102,7 @@ def _parse_object(obj: dict) -> dict | None:
     stats = obj.get("stats") or {}
     price = obj.get("price") or {}
     breadcrumbs = obj.get("breadcrumbs") or []
+    images = obj.get("images") or []
 
     # Ort = letzter Breadcrumb-Eintrag (granularste Ortsangabe, z.B. "Olpenitz")
     ort = breadcrumbs[-1]["label"] if breadcrumbs else "Olpenitz"
@@ -97,10 +112,14 @@ def _parse_object(obj: dict) -> dict | None:
 
     seo_href = obj.get("seoHref") or f"/{obj['id']}/"
 
+    # Erstes Bild = Titelbild (von der Plattform selbst so sortiert)
+    bild_url = images[0].get("thumbnail") or images[0].get("url") if images else None
+
     return {
         "source_id":    str(obj["id"]),
         "source":       SOURCE_NAME,
         "url":          f"{BASE_URL}{seo_href}",
+        "bild_url":     bild_url,
         "name":         name.strip(),
         "ort":          ort,
         "region":       "Schlei",
@@ -110,7 +129,7 @@ def _parse_object(obj: dict) -> dict | None:
         "zimmer":       stats.get("bedrooms"),
         "badezimmer":   stats.get("bathrooms"),
         "ausstattung":  ausstattung,
-        "preis_nacht":  price.get("notFormattedPrice"),
+        "preis_nacht":  _price_per_night(price),
     }
 
 
