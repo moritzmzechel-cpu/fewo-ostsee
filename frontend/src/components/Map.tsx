@@ -57,9 +57,12 @@ export function Map({ listings, selected, onSelect }: Props) {
             eventHandlers={{ click: () => onSelect(l.id) }}
           >
             <Popup>
+              {l.bild_url && (
+                <img src={l.bild_url} alt="" style={{ width: "100%", borderRadius: 4, marginBottom: 6 }} />
+              )}
               <strong>{l.name}</strong><br />
               {l.ort} · {l.personen_max ?? "?"} Pers.
-              {l.letzter_preis_nacht && <><br />{l.letzter_preis_nacht} €/Nacht</>}
+              {l.letzter_preis_nacht && <><br />ab {l.letzter_preis_nacht} €/Nacht</>}
             </Popup>
           </Marker>
         ))}

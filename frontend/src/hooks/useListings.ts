@@ -5,6 +5,7 @@ export interface Listing {
   name: string;
   ort: string;
   region: string;
+  bild_url: string | null;
   personen_max: number | null;
   latitude: number | null;
   longitude: number | null;

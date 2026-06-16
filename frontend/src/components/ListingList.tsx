@@ -21,13 +21,20 @@ export function ListingList({ listings, loading, error, selected, onSelect }: Pr
           className={`listing-card${selected === l.id ? " active" : ""}`}
           onClick={() => onSelect(l.id)}
         >
-          <h3>{l.name}</h3>
-          <div className="listing-meta">
-            <span>{l.ort}</span>
-            {l.personen_max && <span>· {l.personen_max} Pers.</span>}
-            {l.letzter_preis_nacht && (
-              <span className="listing-price">· {l.letzter_preis_nacht} €/Nacht</span>
+          <div className="listing-card-body">
+            {l.bild_url && (
+              <img className="listing-thumb" src={l.bild_url} alt="" loading="lazy" />
             )}
+            <div>
+              <h3>{l.name}</h3>
+              <div className="listing-meta">
+                <span>{l.ort}</span>
+                {l.personen_max && <span>· {l.personen_max} Pers.</span>}
+                {l.letzter_preis_nacht && (
+                  <span className="listing-price">· ab {l.letzter_preis_nacht} €/Nacht</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       ))}

@@ -30,6 +30,7 @@ class ListingBase(BaseModel):
     ort: str
     region: str = "Schlei"
     url: Optional[str] = None
+    bild_url: Optional[str] = None
     source: str = "traum-ferienwohnungen"
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -60,6 +61,7 @@ class ListingShort(BaseModel):
     name: str
     ort: str
     region: str
+    bild_url: Optional[str] = None
     personen_max: Optional[int]
     latitude: Optional[float]
     longitude: Optional[float]
