@@ -8,3 +8,4 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 scraper_run.log
+olpenitz_run.log
